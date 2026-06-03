@@ -134,7 +134,9 @@ function connect(){
 
 setStatus("接続中...")
 
-ws = new WebSocket('wss://websocket-server-production-aa69.up.railway.app')
+ws = new WebSocket(
+'wss://chat-server-n8cl.onrender.com'
+)
 
 ws.onopen = () => {
 setStatus("接続済み")
