@@ -3,76 +3,51 @@ const WebSocket = require("ws");
 const port = process.env.PORT || 3000;
 const wss = new WebSocket.Server({ port });
 
-// ユーザー管理
-let users = new Map(); // ws -> name
-
-// メッセージ保存
+// ★チャット履歴（メモリ保存）
 let messages = [];
 
 wss.on("connection", (ws) => {
+  console.log("Client connected");
+
+  // ★接続した瞬間に履歴を送る
+  ws.send(JSON.stringify({
+    type: "history",
+    data: messages
+  }));
 
   ws.on("message", (msg) => {
-    const data = JSON.parse(msg.toString());
+    try {
+      const data = JSON.parse(msg.toString());
 
-    // ① 入室
-    if (data.type === "join") {
-      users.set(ws, data.name);
-      return;
-    }
-
-    // ② メッセージ送信
-    if (data.type === "message") {
       const message = {
-        id: Date.now(),
         name: data.name,
         message: data.message,
-        readCount: 0
+        time: Date.now()
       };
 
+      // ★履歴に保存
       messages.push(message);
 
-      broadcast({
+      // ★全員に送信
+      const payload = JSON.stringify({
         type: "message",
         data: message
       });
 
-      return;
-    }
+      wss.clients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(payload);
+        }
+      });
 
-    // ③ 既読
-    if (data.type === "read") {
-
-      const msg = messages.find(m => m.id === data.messageId);
-
-      if (msg) {
-        msg.readCount += 1;
-
-        broadcast({
-          type: "read",
-          data: {
-            messageId: msg.id,
-            readCount: msg.readCount
-          }
-        });
-      }
-
-      return;
+    } catch (err) {
+      console.log("error:", err);
     }
   });
 
   ws.on("close", () => {
-    users.delete(ws);
+    console.log("Client disconnected");
   });
 });
-
-function broadcast(data) {
-  const payload = JSON.stringify(data);
-
-  wss.clients.forEach(client => {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(payload);
-    }
-  });
-}
 
 console.log("running on", port);
