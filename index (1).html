@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Simple Chat</title>
+
+<style>
+body{
+margin:0;
+font-family:system-ui;
+background:#2b2d31;
+color:white;
+display:flex;
+flex-direction:column;
+height:100vh;
+}
+
+#chat{
+flex:1;
+overflow-y:auto;
+padding:15px;
+}
+
+.msg{
+margin-bottom:10px;
+}
+
+.name{
+font-weight:bold;
+}
+
+#status{
+padding:5px 10px;
+font-size:12px;
+background:#1e1f22;
+color:#aaa;
+}
+
+#sendArea{
+display:flex;
+padding:10px;
+background:#1e1f22;
+}
+
+#msg{
+flex:1;
+padding:10px;
+border:none;
+border-radius:6px;
+background:#383a40;
+color:white;
+}
+
+button{
+margin-left:6px;
+padding:10px;
+border:none;
+border-radius:6px;
+background:#5865F2;
+color:white;
+cursor:pointer;
+}
+
+button:hover{
+background:#4752c4;
+}
+
+#login{
+position:absolute;
+top:0;
+left:0;
+right:0;
+bottom:0;
+display:flex;
+justify-content:center;
+align-items:center;
+background:#2b2d31;
+}
+
+.panel{
+background:#1e1f22;
+padding:25px;
+border-radius:10px;
+width:300px;
+}
+
+.panel input{
+width:100%;
+margin-top:8px;
+padding:10px;
+border:none;
+border-radius:6px;
+background:#383a40;
+color:white;
+}
+
+.panel button{
+width:100%;
+margin-top:10px;
+}
+</style>
+</head>
+
+<body>
+
+<div id="login">
+<div class="panel">
+<h2>名前入力</h2>
+<input id="name" maxlength="15" placeholder="ユーザー名（15文字以内）">
+<button onclick="join()">参加</button>
+</div>
+</div>
+
+<div id="status">未接続</div>
+
+<div id="chat"></div>
+
+<div id="sendArea">
+<input id="msg" maxlength="400" placeholder="メッセージ（最大400文字）">
+<button onclick="send()">送信</button>
+</div>
+
+<script>
+
+let ws
+let username
+let reconnectTimer
+
+function setStatus(text){
+document.getElementById("status").innerText = text
+}
+
+function connect(){
+
+setStatus("接続中...")
+
+ws = new WebSocket('wss://websocket-server-production-aa69.up.railway.app')
+
+ws.onopen = () => {
+setStatus("接続済み")
+console.log("接続成功")
+}
+
+ws.onmessage = async (e) => {
+
+let text
+
+if(e.data instanceof Blob){
+text = await e.data.text()
+}else{
+text = e.data
+}
+
+let data
+try{
+data = JSON.parse(text)
+}catch{
+addMsg("server", text)
+return
+}
+
+if(data.name && data.message){
+addMsg(data.name, data.message)
+}
+}
+
+ws.onerror = () => {
+setStatus("エラー")
+}
+
+ws.onclose = () => {
+setStatus("切断 → 再接続中...")
+
+clearTimeout(reconnectTimer)
+reconnectTimer = setTimeout(connect, 2000)
+}
+
+}
+
+function join(){
+
+const inputName = document.getElementById("name").value.trim()
+
+// ★名前チェック
+if(!inputName){
+alert("名前を入力してください")
+return
+}
+
+if(inputName.length > 15){
+alert("名前は15文字以内にしてください")
+return
+}
+
+username = inputName
+
+document.getElementById("login").style.display="none"
+
+connect()
+}
+
+function addMsg(name,msg){
+
+const chat=document.getElementById("chat")
+
+const div=document.createElement("div")
+div.className="msg"
+
+div.innerHTML="<span class='name'>"+name+"</span>: "+msg
+
+chat.appendChild(div)
+chat.scrollTop=chat.scrollHeight
+
+}
+
+function send(){
+
+if(!ws || ws.readyState !== WebSocket.OPEN){
+alert("まだ接続されていません")
+return
+}
+
+const input=document.getElementById("msg")
+let text=input.value
+
+if(!text) return
+
+// ★400文字制限
+if(text.length > 400){
+alert("400文字以内で入力してください")
+return
+}
+
+const message = {
+name: username,
+message: text
+}
+
+ws.send(JSON.stringify(message))
+
+input.value=""
+
+}
+
+document.getElementById("msg").addEventListener("keydown",e=>{
+if(e.key==="Enter") send()
+})
+
+</script>
+
+</body>
+</html>
