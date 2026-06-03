@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>Chat</title>
+<title>Simple Chat</title>
 
 <style>
 body{
@@ -23,7 +23,6 @@ padding:15px;
 
 .msg{
 margin-bottom:10px;
-cursor:pointer;
 }
 
 .name{
@@ -94,6 +93,11 @@ border-radius:6px;
 background:#383a40;
 color:white;
 }
+
+.panel button{
+width:100%;
+margin-top:10px;
+}
 </style>
 </head>
 
@@ -102,7 +106,7 @@ color:white;
 <div id="login">
 <div class="panel">
 <h2>名前入力</h2>
-<input id="name" maxlength="15" placeholder="ユーザー名">
+<input id="name" maxlength="15" placeholder="ユーザー名（15文字以内）">
 <button onclick="join()">参加</button>
 </div>
 </div>
@@ -112,7 +116,7 @@ color:white;
 <div id="chat"></div>
 
 <div id="sendArea">
-<input id="msg" maxlength="400" placeholder="メッセージ">
+<input id="msg" maxlength="400" placeholder="メッセージ（最大400文字）">
 <button onclick="send()">送信</button>
 </div>
 
@@ -127,34 +131,36 @@ document.getElementById("status").innerText = text;
 
 function connect(){
 
+setStatus("接続中...");
+
 ws = new WebSocket("wss://YOUR-RENDER-URL.onrender.com");
 
 ws.onopen = () => {
 setStatus("接続済み");
-
-// 入室通知
-ws.send(JSON.stringify({
-type: "join",
-name: username
-}));
 };
 
 ws.onmessage = async (e) => {
 
-const data = JSON.parse(e.data);
+let text;
 
-// メッセージ
+if(e.data instanceof Blob){
+text = await e.data.text();
+}else{
+text = e.data;
+}
+
+const data = JSON.parse(text);
+
+// ★履歴
+if(data.type === "history"){
+data.data.forEach(addMsg);
+}
+
+// ★新規メッセージ
 if(data.type === "message"){
 addMsg(data.data);
 }
 
-// 既読更新
-if(data.type === "read"){
-const el = document.getElementById("read-" + data.data.messageId);
-if(el){
-el.innerText = "✔ " + data.data.readCount + "人";
-}
-}
 };
 
 ws.onclose = () => {
@@ -186,6 +192,8 @@ connect();
 
 function addMsg(data){
 
+const chat = document.getElementById("chat");
+
 const div = document.createElement("div");
 div.className = "msg";
 
@@ -193,15 +201,7 @@ div.innerHTML =
 "<span class='name'>" +
 data.name +
 "</span>: " +
-data.message +
-" <span id='read-" + data.id + "'>✔ 0人</span>";
-
-div.onclick = () => {
-ws.send(JSON.stringify({
-type: "read",
-messageId: data.id
-}));
-};
+data.message;
 
 chat.appendChild(div);
 chat.scrollTop = chat.scrollHeight;
@@ -210,7 +210,7 @@ chat.scrollTop = chat.scrollHeight;
 function send(){
 
 if(!ws || ws.readyState !== WebSocket.OPEN){
-alert("未接続");
+alert("まだ接続されていません");
 return;
 }
 
@@ -220,7 +220,6 @@ const text = input.value;
 if(!text) return;
 
 ws.send(JSON.stringify({
-type: "message",
 name: username,
 message: text
 }));
