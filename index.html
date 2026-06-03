@@ -122,131 +122,116 @@ margin-top:10px;
 
 <script>
 
-let ws
-let username
-let reconnectTimer
+let ws;
+let username;
 
 function setStatus(text){
-document.getElementById("status").innerText = text
+document.getElementById("status").innerText = text;
 }
 
 function connect(){
 
-setStatus("接続中...")
+setStatus("接続中...");
 
 ws = new WebSocket(
 'wss://chat-server-n8cl.onrender.com'
 )
 
 ws.onopen = () => {
-setStatus("接続済み")
-console.log("接続成功")
-}
+setStatus("接続済み");
+};
 
 ws.onmessage = async (e) => {
 
-let text
+let text;
 
 if(e.data instanceof Blob){
-text = await e.data.text()
+text = await e.data.text();
 }else{
-text = e.data
+text = e.data;
 }
 
-let data
-try{
-data = JSON.parse(text)
-}catch{
-addMsg("server", text)
-return
+const data = JSON.parse(text);
+
+// ★履歴
+if(data.type === "history"){
+data.data.forEach(addMsg);
 }
 
-if(data.name && data.message){
-addMsg(data.name, data.message)
-}
+// ★新規メッセージ
+if(data.type === "message"){
+addMsg(data.data);
 }
 
-ws.onerror = () => {
-setStatus("エラー")
-}
+};
 
 ws.onclose = () => {
-setStatus("切断 → 再接続中...")
+setStatus("切断 → 再接続中...");
+setTimeout(connect, 2000);
+};
 
-clearTimeout(reconnectTimer)
-reconnectTimer = setTimeout(connect, 2000)
-}
+ws.onerror = () => {
+setStatus("エラー");
+};
 
 }
 
 function join(){
 
-const inputName = document.getElementById("name").value.trim()
+const inputName = document.getElementById("name").value.trim();
 
-// ★名前チェック
 if(!inputName){
-alert("名前を入力してください")
-return
+alert("名前を入力してください");
+return;
 }
 
-if(inputName.length > 15){
-alert("名前は15文字以内にしてください")
-return
+username = inputName;
+
+document.getElementById("login").style.display = "none";
+
+connect();
 }
 
-username = inputName
+function addMsg(data){
 
-document.getElementById("login").style.display="none"
+const chat = document.getElementById("chat");
 
-connect()
-}
+const div = document.createElement("div");
+div.className = "msg";
 
-function addMsg(name,msg){
+div.innerHTML =
+"<span class='name'>" +
+data.name +
+"</span>: " +
+data.message;
 
-const chat=document.getElementById("chat")
-
-const div=document.createElement("div")
-div.className="msg"
-
-div.innerHTML="<span class='name'>"+name+"</span>: "+msg
-
-chat.appendChild(div)
-chat.scrollTop=chat.scrollHeight
-
+chat.appendChild(div);
+chat.scrollTop = chat.scrollHeight;
 }
 
 function send(){
 
 if(!ws || ws.readyState !== WebSocket.OPEN){
-alert("まだ接続されていません")
-return
+alert("まだ接続されていません");
+return;
 }
 
-const input=document.getElementById("msg")
-let text=input.value
+const input = document.getElementById("msg");
+const text = input.value;
 
-if(!text) return
+if(!text) return;
 
-// ★400文字制限
-if(text.length > 400){
-alert("400文字以内で入力してください")
-return
-}
-
-const message = {
+ws.send(JSON.stringify({
 name: username,
 message: text
+}));
+
+input.value = "";
 }
 
-ws.send(JSON.stringify(message))
-
-input.value=""
-
-}
-
-document.getElementById("msg").addEventListener("keydown",e=>{
-if(e.key==="Enter") send()
-})
+document.getElementById("msg").addEventListener("keydown", e=>{
+if(e.key === "Enter") send();
+});
 
 </script>
 
